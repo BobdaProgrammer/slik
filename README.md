@@ -1,4 +1,4 @@
 # Slik
 Slik is a terminal based IDE made in go.
 
-![ExampleOfTextEditor](./README_files/ReadMeScreenShot.png)
+<img src="./README_files/ReadMeScreenShot.png" alt="Example of text Editor" style="width: 250px; height: 200px">
