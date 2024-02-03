@@ -207,6 +207,8 @@ func main() {
                 return
             case termbox.KeyCtrlV:
                 text := string(clipboard.Read(clipboard.FmtText))
+                CursorPosX,CursorPosY  := editor.cursorX+editor.offsetX, editor.cursorY+editor.offsetY
+                if text != ""{
                 editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX+editor.offsetX] + text + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
                 if editor.cursorX == editor.width{
                     editor.offsetX+= len(text)
@@ -217,6 +219,14 @@ func main() {
                         editor.cursorX = editor.width
                     }
                 }
+                editor.UndoBuffer = append(editor.UndoBuffer, Action{
+                    CursorX: CursorPosX,
+                    CursorXEND: editor.cursorX+editor.offsetX,
+                    CursorY: CursorPosY,
+                    CursorYEND: editor.cursorY+editor.offsetY,
+                    Text:    text,
+                })
+            }
             case termbox.KeyCtrlS:
                 editor.SaveFile()
             case termbox.KeyCtrlZ:
@@ -231,6 +241,9 @@ func main() {
             
                 // Reverse the action
                 editor.buffer[action.CursorY+editor.offsetY] = editor.buffer[action.CursorY][:action.CursorX]+editor.buffer[action.CursorY][action.CursorXEND:]
+                if len(action.Text)>editor.width{
+                    editor.offsetX = len(action.Text)-editor.width+editor.cursorX
+                }
                 editor.cursorX = action.CursorX
                 editor.cursorY = action.CursorY
             
