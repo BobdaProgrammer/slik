@@ -1,8 +1,6 @@
 //A terminal based text editor
 
 
-
-
 package main
 
 import (
@@ -23,6 +21,7 @@ type Action struct {
     CursorY int
     CursorYEND int
     Text    string
+    remove  bool
 }
 
 type Editor struct {
@@ -153,9 +152,10 @@ func (e *Editor) Render() {
 func (e *Editor) AppendCharacter(char rune) {
     // Get the current line and cursor position
     lineIndex := e.cursorY + e.offsetY
-    cursorPosition := e.cursorX + e.offsetX
+    cursorPositionX := e.cursorX + e.offsetX
+    cursorPositionY := e.cursorY + e.offsetY
 
-        e.buffer[lineIndex] = e.buffer[lineIndex][:cursorPosition] + string(char) + e.buffer[lineIndex][cursorPosition:]
+        e.buffer[lineIndex] = e.buffer[lineIndex][:cursorPositionX] + string(char) + e.buffer[lineIndex][cursorPositionX:]
 
     // Update the cursor position
     e.cursorX++
@@ -166,11 +166,38 @@ func (e *Editor) AppendCharacter(char rune) {
 
     // Record the action in the UndoBuffer
     e.UndoBuffer = append(e.UndoBuffer, Action{
-        CursorX: cursorPosition,
+        CursorX: cursorPositionX,
         CursorXEND: e.cursorX+e.offsetX,
-        CursorY: e.cursorY,
+        CursorY: cursorPositionY,
         CursorYEND: e.cursorY+e.offsetY,
         Text:    string(char),
+        remove:  false,
+    })
+}
+
+func (editor *Editor)Enter(){
+    var nextText string = ""
+    CursorPosX, CursorPosY := editor.cursorX+editor.offsetX, editor.cursorY+editor.offsetY
+    if editor.cursorX+editor.offsetX < len(editor.buffer[editor.cursorY+editor.offsetY]) {
+        nextText = editor.buffer[editor.cursorY][editor.cursorX:]
+        editor.buffer[editor.cursorY] = editor.buffer[editor.cursorY][:editor.cursorX]
+    }
+    editor.buffer = append(editor.buffer[:editor.cursorY+1+editor.offsetY], append([]string{""}, editor.buffer[editor.cursorY+1+editor.offsetY:]...)...)
+    editor.cursorY++
+    editor.buffer[editor.cursorY+editor.offsetY] = nextText
+    editor.cursorX = 0
+    editor.offsetX = 0
+    if editor.cursorY>editor.height{
+        editor.offsetY += 1
+        editor.cursorY = editor.height 
+    }
+    editor.UndoBuffer = append(editor.UndoBuffer, Action{
+        CursorX: CursorPosX,
+        CursorXEND: editor.cursorX+editor.offsetX,
+        CursorY: CursorPosY,
+        CursorYEND: editor.cursorY+editor.offsetY,
+        Text:    "\n",
+        remove: false,
     })
 }
 
@@ -196,6 +223,8 @@ func main() {
         termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
         termbox.Close()
         fmt.Println(editor.UndoBuffer)
+        action := editor.UndoBuffer[len(editor.UndoBuffer)-1]
+        fmt.Println(action.CursorY, editor.cursorY+editor.offsetY)
     }()
     for {
         //go through possible user inputs
@@ -225,6 +254,7 @@ func main() {
                     CursorY: CursorPosY,
                     CursorYEND: editor.cursorY+editor.offsetY,
                     Text:    text,
+                    remove: false,
                 })
             }
             case termbox.KeyCtrlS:
@@ -238,37 +268,78 @@ func main() {
                 // Pop the last action from the UndoBuffer
                 action := editor.UndoBuffer[len(editor.UndoBuffer)-1]
                 editor.UndoBuffer = editor.UndoBuffer[:len(editor.UndoBuffer)-1]
-            
+                if action.CursorXEND > editor.width{
+                    editor.offsetX = action.CursorXEND-editor.width
+                    editor.cursorX = editor.width
+                } 
+                if action.CursorYEND > editor.height{
+                    editor.offsetY = action.CursorYEND-editor.height
+                    editor.cursorY = editor.height
+                }
                 // Reverse the action
-                editor.buffer[action.CursorY+editor.offsetY] = editor.buffer[action.CursorY][:action.CursorX]+editor.buffer[action.CursorY][action.CursorXEND:]
+                if !action.remove{
+                    if action.Text != "\n"{
+                        editor.buffer[action.CursorY] = editor.buffer[action.CursorY][:action.CursorX]+editor.buffer[action.CursorY][action.CursorXEND:]
+                        if len(action.Text)>editor.width{
+                            editor.offsetX = len(action.Text)-editor.width+editor.cursorX
+                        }
+                        editor.cursorX = action.CursorX
+                        editor.cursorY = action.CursorY
+                    } else{
+                            nextText := editor.buffer[action.CursorYEND][action.CursorXEND:]
+                            copy(editor.buffer[action.CursorYEND:], editor.buffer[action.CursorYEND+1:])
+                            editor.buffer = editor.buffer[:len(editor.buffer)-1]
+                            editor.offsetX = 0
+                            if editor.cursorX > editor.width{
+                                editor.offsetX = action.CursorX-editor.width
+                                editor.cursorX = editor.width
+                            }
+                            editor.buffer[action.CursorY+editor.offsetY] += nextText 
+                            editor.cursorY--
+                            editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
+            }
+            } else{
+                if action.Text!="\n"{
+                editor.buffer[action.CursorY+editor.offsetY] = editor.buffer[action.CursorY][:action.CursorXEND]+action.Text+editor.buffer[action.CursorY][action.CursorXEND:]
                 if len(action.Text)>editor.width{
                     editor.offsetX = len(action.Text)-editor.width+editor.cursorX
                 }
-                editor.cursorX = action.CursorX
+                editor.cursorX = action.CursorXEND
                 editor.cursorY = action.CursorY
+            } else{
+                editor.Enter()
+            }
+            }
+                if editor.cursorX > editor.width{
+                    editor.offsetX = action.CursorXEND-editor.width
+                    editor.cursorX = editor.width
+                } 
+                if editor.cursorY > editor.height{
+                    editor.offsetY = action.CursorYEND-editor.height
+                    editor.cursorY = editor.height
+                }
             
                 // Move the action to the RedoBuffer
                 editor.RedoBuffer = append(editor.RedoBuffer, action)
             case termbox.KeyEnter:
-                //editor.UndoBuffer = append(editor.UndoBuffer, []int{editor.cursorX + editor.offsetX, editor.cursorY + editor.offsetY, []string{"\n"}})
-                var nextText string = ""
-                if editor.cursorX+editor.offsetX < len(editor.buffer[editor.cursorY+editor.offsetY]) {
-                    nextText = editor.buffer[editor.cursorY][editor.cursorX:]
-                    editor.buffer[editor.cursorY] = editor.buffer[editor.cursorY][:editor.cursorX]
-                }
-                editor.buffer = append(editor.buffer[:editor.cursorY+1+editor.offsetY], append([]string{""}, editor.buffer[editor.cursorY+1+editor.offsetY:]...)...)
-                editor.cursorY++
-                editor.buffer[editor.cursorY+editor.offsetY] = nextText
-                editor.cursorX = 0
-                editor.offsetX = 0
+                editor.Enter()
             case termbox.KeyBackspace, termbox.KeyBackspace2:
                 if editor.cursorX != 0 || editor.offsetX>0{
-                    editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX-1] + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX:]
+                    var BACKtext string = editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX-1:editor.cursorX+editor.offsetX]
+                    editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX-1] + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
                     editor.cursorX--
                     if editor.offsetX>0&&editor.cursorX==0{
                         editor.offsetX--
                         editor.cursorX++
                     }
+                    editor.UndoBuffer = append(editor.UndoBuffer, Action{
+                        CursorX: editor.cursorX+1,
+                        CursorXEND: editor.cursorX+editor.offsetX,
+                        CursorY: editor.cursorY+editor.offsetY,
+                        CursorYEND: editor.cursorY+editor.offsetY,
+                        Text:    string(BACKtext),
+                        remove:  true,
+                    })
                 } else if editor.cursorY > 0 {
                     nextText := editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX:]
                     copy(editor.buffer[editor.cursorY+editor.offsetY:], editor.buffer[editor.cursorY+1+editor.offsetY:])
@@ -282,25 +353,60 @@ func main() {
                         editor.cursorX = editor.width
                     }
                     editor.buffer[editor.cursorY+editor.offsetY] += nextText 
+                    editor.UndoBuffer = append(editor.UndoBuffer, Action{
+                        CursorX: editor.cursorX+1,
+                        CursorXEND: editor.cursorX+editor.offsetX,
+                        CursorY: editor.cursorY+editor.offsetY,
+                        CursorYEND: editor.cursorY+editor.offsetY,
+                        Text:    "\n",
+                        remove:  true,
+                    })
                 }
             case termbox.KeyDelete:
                 if editor.cursorX != len(editor.buffer[editor.cursorY+editor.offsetY]) {
+                    text := editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX]
                     editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX] + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+1:]
+                    editor.UndoBuffer = append(editor.UndoBuffer, Action{
+                        CursorX: editor.cursorX+1,
+                        CursorXEND: editor.cursorX+editor.offsetX,
+                        CursorY: editor.cursorY+editor.offsetY,
+                        CursorYEND: editor.cursorY+editor.offsetY,
+                        Text:    string(text),
+                        remove:  true,
+                    })
                 }
             case termbox.KeySpace:
+                CursorPosX,CursorPosY  := editor.cursorX+editor.offsetX, editor.cursorY+editor.offsetY
+
                 editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX] + " " + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX:]
                 editor.cursorX++
                 if editor.cursorX > editor.width{
                     editor.offsetX++
                     editor.cursorX--
                 }
+                editor.UndoBuffer = append(editor.UndoBuffer, Action{
+                    CursorX: CursorPosX,
+                    CursorXEND: editor.cursorX+editor.offsetX,
+                    CursorY: CursorPosY,
+                    CursorYEND: editor.cursorY+editor.offsetY,
+                    Text:    " ",
+                })
             case termbox.KeyTab:
+                CursorPosX,CursorPosY  := editor.cursorX+editor.offsetX, editor.cursorY+editor.offsetY
+
                 editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX] + "    " + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX:]
                 editor.cursorX += len("    ")
                 if editor.cursorX > editor.width{
                     editor.offsetX++
                     editor.cursorX--
                 }
+                editor.UndoBuffer = append(editor.UndoBuffer, Action{
+                    CursorX: CursorPosX,
+                    CursorXEND: editor.cursorX+editor.offsetX,
+                    CursorY: CursorPosY,
+                    CursorYEND: editor.cursorY+editor.offsetY,
+                    Text:    "    ",
+                })
             case termbox.KeyArrowLeft:
                 if editor.cursorX > 0||editor.offsetX>0 {
                     editor.cursorX--
