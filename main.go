@@ -123,34 +123,80 @@ func (e *Editor) ReadFile(filename string) {
 
 func includes(line string, target string) (bool, int) {
 	if strings.Contains(line, target) {
-		return true, strings.Index(line, target)
+		place := strings.Index(line, target)
+		var inQuote bool = false
+		for n, c := range line {
+			if c == '"' && inQuote == false {
+				inQuote = true
+			} else if c == '"' {
+				inQuote = false
+			}
+
+			if c == '/' && line[n+1] == '/' && !inQuote {
+				return true, place
+			}
+		}
+		return false, 0
 	}
 	return false, 0
 }
 
-func includesStr(line string) (bool, int, int) {
-	if strings.Contains(line, `"`) {
-		var index int = strings.Index(line, `"`)
-		var other string = line
-		other = other[:index] + other[index+1:]
-		var otherInd int = strings.Index(other, `"`)
-		return true, index, otherInd
+func includesStr(line string, index int) (bool, int, int) {
+	startIndex := 0
+	if line[index] != '"' {
+		// Find the start index of the substring starting at the given index
+		substring := line[:index]
+		// Reverse the substring
+		lookBack := reverseString(substring)
+		startIndex = len(lookBack) - strings.Index(lookBack, `"`) - 1
+		if startIndex == -1 {
+			// No substring starting at the given index
+			return false, 0, 0
+		}
+
+		// Find the end index of the substring
+		endIndex := strings.Index(line[index+1:], `"`)
+		if endIndex == -1 {
+			// No end quote found, so the substring is not properly closed
+			return false, 0, 0
+		}
+		endIndex += index + 1 // Adjust for the slice
+
+		quoteCount := 0
+		for i, char := range line {
+			if char == '"' {
+				quoteCount++
+			}
+			if i == endIndex && quoteCount%2 == 0 {
+				return true, startIndex, endIndex
+			}
+		}
+		return false, 0, 0
+	} else {
+		return true, index, index
 	}
-	return false, 0, 0
+}
+
+func reverseString(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
 }
 
 func SyntaxHighlight(word string, index int, line string, bracket, point bool) termbox.Attribute {
+	isString, where2, where3 := includesStr(line, index)
+	if isString == true && ((where2 <= index && where3 >= index-1) || where2 == where3) {
+		return termbox.ColorCyan
+	}
 	iscomment, where := includes(line, "//")
 	if iscomment == true && where <= index {
 		return termbox.ColorGreen
 	}
-	isString, where2, where3 := includesStr(line)
-	if isString == true && where2 <= index && where3 >= index-1 {
-		return termbox.ColorCyan
-	}
 
 	switch word {
-	case "(", ")", "{", "}", "if", "else", "elif":
+	case "(", ")", "{", "}", "if", "else", "elif", "case", "switch", "default", "return":
 		return termbox.ColorMagenta
 	case "+", "-", "=", "/", "!", ":", "func":
 		return termbox.ColorBlue
@@ -171,16 +217,27 @@ func SyntaxHighlight(word string, index int, line string, bracket, point bool) t
 		return termbox.ColorDefault
 	}
 }
+func inUnn(unn []string, char string) bool {
+	for _, c := range unn {
+		if c == char {
+			return true
+		}
+	}
+	return false
+}
 func getWord(line string, index int) (string, bool, bool) {
-	switch string(line[index]) {
-	case "(", ")", ".", " ", "+", "-", "/", "=", "!", "{", "}", "[", "]":
+	var UnnAcceptable = []string{"(", ")", ".", " ", "+", "-", "/", "=", "!", "{", "}", "[", "]"}
+	var isUnn = inUnn(UnnAcceptable, string(line[index]))
+	switch isUnn {
+	case true:
 		return string(line[index]), false, false
 	default:
+
 		var endWord string = ""
 		var bracket bool = false
 		var point bool = false
 		for _, c := range line[index:] {
-			if c != ' ' && c != '(' && c != '.' {
+			if !inUnn(UnnAcceptable, string(c)) {
 				endWord += string(c)
 			} else {
 				if c == '(' {
@@ -215,6 +272,9 @@ func getWord(line string, index int) (string, bool, bool) {
 
 // rendering the text on the screen
 func (e *Editor) Render() {
+	e.width, e.height = termbox.Size()
+	e.width -= 7
+	e.height -= 1
 	// Clear the screen and set the padding for the lines
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	maxLineLength := e.width - 2
@@ -327,8 +387,8 @@ func (editor *Editor) Enter() {
 	var nextText string = ""
 	CursorPosX, CursorPosY := editor.cursorX+editor.offsetX, editor.cursorY+editor.offsetY
 	if editor.cursorX+editor.offsetX < len(editor.buffer[editor.cursorY+editor.offsetY]) {
-		nextText = editor.buffer[editor.cursorY][editor.cursorX:]
-		editor.buffer[editor.cursorY] = editor.buffer[editor.cursorY][:editor.cursorX]
+		nextText = editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
+		editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX+editor.offsetX]
 	}
 	editor.buffer = append(editor.buffer[:editor.cursorY+1+editor.offsetY], append([]string{""}, editor.buffer[editor.cursorY+1+editor.offsetY:]...)...)
 	editor.cursorY++
@@ -584,15 +644,15 @@ func main() {
 						editor.offsetY--
 					} else {
 						editor.cursorY--
-						if len(editor.buffer[editor.cursorY+editor.offsetY]) < editor.cursorX+editor.offsetX {
-							editor.offsetX = 0
-							editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetX])
-							editor.offsetX = 0
-							editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
-							if editor.cursorX > editor.width {
-								editor.offsetX = editor.cursorX - editor.width
-								editor.cursorX = editor.width
-							}
+					}
+					if len(editor.buffer[editor.cursorY+editor.offsetY]) < editor.cursorX+editor.offsetX {
+						editor.offsetX = 0
+						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetX])
+						editor.offsetX = 0
+						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
+						if editor.cursorX > editor.width {
+							editor.offsetX = editor.cursorX - editor.width
+							editor.cursorX = editor.width
 						}
 					}
 
@@ -605,15 +665,16 @@ func main() {
 
 					} else {
 						editor.cursorY++
-						if len(editor.buffer[editor.cursorY+editor.offsetY]) < editor.cursorX+editor.offsetX {
-							editor.offsetX = 0
-							editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
-							if editor.cursorX > editor.width {
-								editor.offsetX = editor.cursorX - editor.width
-								editor.cursorX = editor.width
-							}
+					}
+					if len(editor.buffer[editor.cursorY+editor.offsetY]) < editor.cursorX+editor.offsetX {
+						editor.offsetX = 0
+						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
+						if editor.cursorX > editor.width {
+							editor.offsetX = editor.cursorX - editor.width
+							editor.cursorX = editor.width
 						}
 					}
+
 				}
 			default:
 				if ev.Ch != 0 && string(ev.Ch) != "" && string(ev.Ch) != " " {
