@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,126 @@ import (
 )
 
 var filename string = ""
+
+type ColorMapping struct {
+	Comments       KeywordColor `json:"comments"`
+	Strings        KeywordColor `json:"strings"`
+	Keywords       KeywordColor `json:"keywords"`
+	Statements     KeywordColor `json:"statements"`
+	Types          KeywordColor `json:"types"`
+	Operators      KeywordColor `json:"operators"`
+	Brackets       KeywordColor `json:"brackets"`
+	Declarations   KeywordColor `json:"declarations"`
+	FnDeclarations KeywordColor `json:"FnDeclarations"`
+}
+
+type KeywordColor struct {
+	Color ColorDetails `json:"color"`
+}
+
+type ColorDetails struct {
+	Color string `json:"color"`
+}
+
+var wordList = map[string]string{
+	"if":        "statement",
+	"else":      "statement",
+	"switch":    "statement",
+	"case":      "statement",
+	"default":   "statement",
+	"for":       "statement",
+	"while":     "statement",
+	"do":        "statement",
+	"break":     "statement",
+	"continue":  "statement",
+	"return":    "statement",
+	"var":       "declaration",
+	"let":       "declaration",
+	"const":     "declaration",
+	"function":  "FnDeclaration",
+	"func":      "FnDeclaration",
+	"class":     "declaration",
+	"interface": "declaration",
+	"type":      "keyword",
+	"import":    "keyword",
+	"package":   "keyword",
+	"struct":    "keyword",
+	"int":       "type",
+	"string":    "type",
+	"bool":      "type",
+	"float64":   "type",
+	"float32":   "type",
+	"array":     "type",
+	"map":       "type",
+	"(":         "bracket",
+	")":         "bracket",
+	"{":         "bracket",
+	"}":         "bracket",
+	"[":         "type",
+	"]":         "type",
+	"+":         "operator",
+	"-":         "operator",
+	"/":         "operator",
+	"*":         "operator",
+	"=":         "operator",
+	"!":         "operator",
+	":":         "operator",
+}
+
+var colors = map[string]termbox.Attribute{
+	"comments":      termbox.ColorGreen,
+	"strings":       termbox.ColorCyan,
+	"statement":     termbox.ColorMagenta,
+	"bracket":       termbox.ColorMagenta,
+	"FnDeclaration": termbox.ColorBlue,
+	"operator":      termbox.ColorBlue,
+	"declaration":   termbox.ColorCyan,
+	"keyword":       termbox.ColorYellow,
+	"type":          termbox.ColorYellow,
+}
+
+var ColorToAttrib = map[string]termbox.Attribute{
+	"Magenta":       termbox.ColorMagenta,
+	"Yellow":        termbox.ColorYellow,
+	"Blue":          termbox.ColorBlue,
+	"Cyan":          termbox.ColorCyan,
+	"Green":         termbox.ColorGreen,
+	"Red":           termbox.ColorRed,
+	"White":         termbox.ColorWhite,
+	"Black":         termbox.ColorBlack,
+	"Default":       termbox.ColorDefault,
+	"BrightRed":     termbox.ColorRed | termbox.AttrBold,
+	"BrightGreen":   termbox.ColorGreen | termbox.AttrBold,
+	"BrightYellow":  termbox.ColorYellow | termbox.AttrBold,
+	"BrightBlue":    termbox.ColorBlue | termbox.AttrBold,
+	"BrightMagenta": termbox.ColorMagenta | termbox.AttrBold,
+	"BrightCyan":    termbox.ColorCyan | termbox.AttrBold,
+	"BrightWhite":   termbox.ColorWhite | termbox.AttrBold,
+}
+
+func loadConfig() {
+	jsonData, _ := ioutil.ReadFile("config.json")
+
+	// Parse the JSON data into the ColorMapping struct
+	var colorMapping ColorMapping
+	err := json.Unmarshal(jsonData, &colorMapping)
+	if err != nil {
+		fmt.Println("Error parsing JSON:", err)
+		return
+	}
+	// Create a map with the types and their colors
+	colors = map[string]termbox.Attribute{
+		"comments":      ColorToAttrib[colorMapping.Comments.Color.Color],
+		"strings":       ColorToAttrib[colorMapping.Strings.Color.Color],
+		"keyword":       ColorToAttrib[colorMapping.Keywords.Color.Color],
+		"statement":     ColorToAttrib[colorMapping.Statements.Color.Color],
+		"type":          ColorToAttrib[colorMapping.Types.Color.Color],
+		"operator":      ColorToAttrib[colorMapping.Operators.Color.Color],
+		"bracket":       ColorToAttrib[colorMapping.Brackets.Color.Color],
+		"declaration":   ColorToAttrib[colorMapping.Declarations.Color.Color],
+		"FnDeclaration": ColorToAttrib[colorMapping.FnDeclarations.Color.Color],
+	}
+}
 
 // defining the structure of the text editor
 type Action struct {
@@ -186,28 +307,32 @@ func reverseString(s string) string {
 	return string(runes)
 }
 
-func SyntaxHighlight(word string, index int, line string, bracket, point bool) termbox.Attribute {
+func SyntaxHighlight(word string, index int, line string, bracket, point bool, wordType string) termbox.Attribute {
 	isString, where2, where3 := includesStr(line, index)
 	if isString == true && ((where2 <= index && where3 >= index-1) || where2 == where3) {
-		return termbox.ColorCyan
+		return colors["strings"]
 	}
 	iscomment, where := includes(line, "//")
 	if iscomment == true && where <= index {
-		return termbox.ColorGreen
+		return colors["comments"]
 	}
 
-	switch word {
-	case "(", ")", "{", "}", "if", "else", "elif", "case", "switch", "default", "return":
-		return termbox.ColorMagenta
-	case "+", "-", "=", "/", "!", ":", "func":
-		return termbox.ColorBlue
-	case "var", "let", "const":
+	switch wordType {
+	case "bracket":
+		return colors["bracket"]
+	case "statement":
+		return colors["statement"]
+	case "FnDeclaration":
+		return colors["FnDeclaration"]
+	case "operator":
+		return colors["operator"]
+	case "declaration":
 		// Highlight the word if it matches any of the cases
-		return termbox.ColorCyan
-	case "import", "package", "type", "struct":
-		return termbox.ColorYellow
-	case "int", "string", "bool", "float64", "float32", "[", "]":
-		return termbox.ColorYellow
+		return colors["declaration"]
+	case "keyword":
+		return colors["keyword"]
+	case "type":
+		return colors["type"]
 	default:
 		if bracket {
 			return termbox.ColorYellow
@@ -226,12 +351,12 @@ func inUnn(unn []string, char string) bool {
 	}
 	return false
 }
-func getWord(line string, index int) (string, bool, bool) {
+func getWord(line string, index int) (string, bool, bool, string) {
 	var UnnAcceptable = []string{"(", ")", ".", " ", "+", "-", "/", "=", "!", "{", "}", "[", "]"}
 	var isUnn = inUnn(UnnAcceptable, string(line[index]))
 	switch isUnn {
 	case true:
-		return string(line[index]), false, false
+		return string(line[index]), false, false, wordList[string(line[index])]
 	default:
 
 		var endWord string = ""
@@ -253,7 +378,7 @@ func getWord(line string, index int) (string, bool, bool) {
 		var word string = ""
 		var RightWord bool = false
 		for n, bc := range line[:index] {
-			if bc == ' ' || bc == '(' || bc == '.' {
+			if inUnn(UnnAcceptable, string(bc)) {
 				if RightWord {
 					forWord = word
 					break
@@ -267,7 +392,9 @@ func getWord(line string, index int) (string, bool, bool) {
 			}
 		}
 		forWord = word
-		return forWord + endWord, bracket, point
+		fullWord := forWord + endWord
+		WordType := wordList[fullWord]
+		return fullWord, bracket, point, WordType
 	}
 }
 
@@ -317,8 +444,8 @@ func (e *Editor) Render() {
 			// Change characters based on line length
 			for j, _ := range paddedLine {
 				if j < len(paddedLine)-e.offsetX {
-					word, bracket, point := getWord(paddedLine, j+(e.offsetX))
-					wordColor := SyntaxHighlight(word, j+e.offsetX, paddedLine, bracket, point)
+					word, bracket, point, WordType := getWord(paddedLine, j+(e.offsetX))
+					wordColor := SyntaxHighlight(word, j+e.offsetX, paddedLine, bracket, point, WordType)
 					termbox.SetCell(j+lineCountWidth+2, i, rune(paddedLine[j+e.offsetX]), wordColor, termbox.ColorDefault)
 				}
 			}
@@ -445,10 +572,12 @@ func main() {
 		editor.ReadFile(os.Args[1])
 		filename = os.Args[1]
 	}
+	loadConfig()
 	editor.Render()
 	defer func() {
 		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 		termbox.Close()
+		fmt.Println(colors)
 	}()
 	for {
 		//go through possible user inputs

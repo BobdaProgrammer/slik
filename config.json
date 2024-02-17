@@ -1,0 +1,47 @@
+{
+    "comments":{
+        "color":{
+            "color":"Green"
+        }
+    },
+    "strings":{
+        "color":{
+            "color":"Cyan"
+        }
+    },
+    "keywords": {
+        "color": {
+            "color": "Yellow"
+        }
+    },
+    "statements": {
+        "color": {
+            "color": "Magenta"
+        }
+    },
+    "types": {
+        "color": {
+            "color": "Yellow"
+        }
+    },
+    "operators": {
+        "color": {
+            "color": "Blue"
+        }
+    },
+    "brackets": {
+        "color": {
+            "color": "Magenta"
+        }
+    },
+    "declarations": {
+        "color": {
+            "color": "Cyan"
+        }
+    },
+    "FnDeclarations":{
+        "color":{
+            "color": "Blue"
+        }
+    }
+}
