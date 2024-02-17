@@ -271,10 +271,22 @@ func getWord(line string, index int) (string, bool, bool) {
 	}
 }
 
+func (editor *Editor) StatBar(index int) rune {
+	lineNumber := editor.cursorY + editor.offsetY + 1        // Adding  1 because line numbers start from  1
+	columnNumber := editor.cursorX + editor.offsetX + 1      // Adding  1 because column numbers start from  1
+	formattedLineNumber := fmt.Sprintf("%d", lineNumber)     // Format line number with leading zeros
+	formattedColumnNumber := fmt.Sprintf("%d", columnNumber) // Format column number with leading zeros
+	bar := "ln: " + formattedLineNumber + " | col: " + formattedColumnNumber + " | " + filename
+	for len(bar) != editor.width {
+		bar += " "
+	}
+	return rune(bar[index])
+}
+
 // rendering the text on the screen
 func (e *Editor) Render() {
 	e.width, e.height = termbox.Size()
-	e.width -= 7
+	//e.width -= 7
 	e.height -= 1
 	// Clear the screen and set the padding for the lines
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
@@ -283,7 +295,7 @@ func (e *Editor) Render() {
 	lineCountWidth := lineCountDigits + 1 // +1 for the space between line count and '>'
 
 	for i, line := range e.buffer {
-		if i <= e.height {
+		if i < e.height {
 			var side rune = ' '
 			if i < len(e.buffer)-e.offsetY {
 				line = e.buffer[i+e.offsetY]
@@ -311,6 +323,12 @@ func (e *Editor) Render() {
 				}
 			}
 		}
+		if i == e.height {
+			break
+		}
+	}
+	for j := 0; j < e.width; j++ {
+		termbox.SetCell(j, e.height, rune(e.StatBar(j)), termbox.ColorBlack, termbox.ColorWhite)
 	}
 
 	termbox.SetCursor(e.cursorX+lineCountWidth+2, e.cursorY)
@@ -328,9 +346,9 @@ func (e *Editor) AppendCharacter(char rune) {
 
 	// Update the cursor position
 	e.cursorX++
-	if e.cursorX > e.width {
+	if e.cursorX > e.width-7 {
 		e.offsetX++
-		e.cursorX = e.width
+		e.cursorX = e.width - 7
 	}
 
 	// Record the action in the UndoBuffer
@@ -396,9 +414,9 @@ func (editor *Editor) Enter() {
 	editor.buffer[editor.cursorY+editor.offsetY] = nextText
 	editor.cursorX = 0
 	editor.offsetX = 0
-	if editor.cursorY > editor.height {
+	if editor.cursorY > editor.height-1 {
 		editor.offsetY += 1
-		editor.cursorY = editor.height
+		editor.cursorY = editor.height - 1
 	}
 	editor.UndoBuffer = append(editor.UndoBuffer, Action{
 		CursorX:    CursorPosX,
@@ -425,9 +443,9 @@ func main() {
 	//Check if a file is specified
 	if len(os.Args) > 1 {
 		editor.ReadFile(os.Args[1])
-		editor.Render()
 		filename = os.Args[1]
 	}
+	editor.Render()
 	defer func() {
 		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 		termbox.Close()
@@ -454,13 +472,13 @@ func main() {
 					}
 					if !hasNewLine {
 						editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX+editor.offsetX] + text + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
-						if editor.cursorX == editor.width {
+						if editor.cursorX == editor.width-7 {
 							editor.offsetX += len(text)
 						} else {
 							editor.cursorX += len(text)
-							if editor.cursorX > editor.width {
-								editor.offsetX = editor.cursorX - editor.width
-								editor.cursorX = editor.width
+							if editor.cursorX > editor.width-7 {
+								editor.offsetX = editor.cursorX - editor.width - 7
+								editor.cursorX = editor.width - 7
 							}
 						}
 					} else {
@@ -479,9 +497,9 @@ func main() {
 						editor.buffer[line] = before + editor.buffer[line]
 						editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY] + after
 						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY]) - len(after)
-						if editor.cursorX > editor.width {
-							editor.offsetX = editor.cursorX - editor.width
-							editor.cursorX = editor.width
+						if editor.cursorX > editor.width-7 {
+							editor.offsetX = editor.cursorX - editor.width - 7
+							editor.cursorX = editor.width - 7
 						}
 					}
 					editor.UndoBuffer = append(editor.UndoBuffer, Action{
@@ -511,8 +529,8 @@ func main() {
 					if action.Text != "\n" {
 						if action.CursorY == action.CursorYEND {
 							editor.buffer[action.CursorY] = editor.buffer[action.CursorY][:action.CursorX] + editor.buffer[action.CursorY][action.CursorXEND:]
-							if len(action.Text) > editor.width {
-								editor.offsetX = len(action.Text) - editor.width + editor.cursorX
+							if len(action.Text) > editor.width-7 {
+								editor.offsetX = len(action.Text) - editor.width - 7 + editor.cursorX
 							}
 							editor.cursorX = action.CursorX
 							//editor.cursorY = action.CursorY
@@ -526,9 +544,9 @@ func main() {
 						copy(editor.buffer[action.CursorYEND:], editor.buffer[action.CursorYEND+1:])
 						editor.buffer = editor.buffer[:len(editor.buffer)-1]
 						editor.offsetX = 0
-						if editor.cursorX > editor.width {
-							editor.offsetX = action.CursorX - editor.width
-							editor.cursorX = editor.width
+						if editor.cursorX > editor.width-7 {
+							editor.offsetX = action.CursorX - editor.width - 7
+							editor.cursorX = editor.width - 7
 						}
 						editor.buffer[action.CursorY+editor.offsetY] += nextText
 						editor.cursorY--
@@ -537,8 +555,8 @@ func main() {
 				} else {
 					if action.Text != "\n" {
 						editor.buffer[action.CursorY+editor.offsetY] = editor.buffer[action.CursorY][:action.CursorXEND] + action.Text + editor.buffer[action.CursorY][action.CursorXEND:]
-						if len(action.Text) > editor.width {
-							editor.offsetX = len(action.Text) - editor.width + editor.cursorX
+						if len(action.Text) > editor.width-7 {
+							editor.offsetX = len(action.Text) - editor.width - 7 + editor.cursorX
 						}
 						editor.cursorX = action.CursorXEND
 						//editor.cursorY = action.CursorY
@@ -549,15 +567,15 @@ func main() {
 				if action.CursorY != editor.cursorY+editor.offsetY {
 					editor.cursorY = action.CursorY
 				}
-				if action.CursorX > editor.width {
-					editor.offsetX = action.CursorX - editor.width
-					editor.cursorX = editor.width
-				} else if action.CursorX < editor.width+editor.offsetX {
+				if action.CursorX > editor.width-7 {
+					editor.offsetX = action.CursorX - editor.width - 7
+					editor.cursorX = editor.width - 7
+				} else if action.CursorX < editor.width-7+editor.offsetX {
 					editor.offsetX = action.CursorX - action.CursorX
 				}
-				if action.CursorY > editor.height {
-					editor.offsetY = action.CursorYEND - editor.height
-					editor.cursorY = editor.height
+				if action.CursorY > editor.height-1 {
+					editor.offsetY = action.CursorYEND - editor.height - 1
+					editor.cursorY = editor.height - 1
 				}
 
 				// Move the action to the RedoBuffer
@@ -589,9 +607,9 @@ func main() {
 					editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
 					editor.offsetX = 0
 					editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
-					if editor.cursorX > editor.width {
-						editor.offsetX = editor.cursorX - editor.width
-						editor.cursorX = editor.width
+					if editor.cursorX > editor.width-7 {
+						editor.offsetX = editor.cursorX - editor.width - 7
+						editor.cursorX = editor.width - 7
 					}
 					editor.buffer[editor.cursorY+editor.offsetY] += nextText
 					editor.UndoBuffer = append(editor.UndoBuffer, Action{
@@ -621,7 +639,7 @@ func main() {
 
 				editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX] + " " + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX:]
 				editor.cursorX++
-				if editor.cursorX > editor.width {
+				if editor.cursorX > editor.width-7 {
 					editor.offsetX++
 					editor.cursorX--
 				}
@@ -637,7 +655,7 @@ func main() {
 
 				editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX] + "    " + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX:]
 				editor.cursorX += len("    ")
-				if editor.cursorX > editor.width {
+				if editor.cursorX > editor.width-7 {
 					editor.offsetX++
 					editor.cursorX--
 				}
@@ -659,7 +677,7 @@ func main() {
 			case termbox.KeyArrowRight:
 				if editor.cursorX+editor.offsetX < len(editor.buffer[currentLine+editor.offsetY]) {
 					editor.cursorX++
-					if editor.cursorX > editor.width {
+					if editor.cursorX > editor.width-7 {
 						editor.offsetX++
 						editor.cursorX--
 					}
@@ -676,16 +694,16 @@ func main() {
 						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetX])
 						editor.offsetX = 0
 						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
-						if editor.cursorX > editor.width {
-							editor.offsetX = editor.cursorX - editor.width
-							editor.cursorX = editor.width
+						if editor.cursorX > editor.width-7 {
+							editor.offsetX = editor.cursorX - editor.width - 7
+							editor.cursorX = editor.width - 7
 						}
 					}
 
 				}
 			case termbox.KeyArrowDown:
 				if editor.offsetY+editor.cursorY < len(editor.buffer)-1 {
-					if editor.cursorY == editor.height {
+					if editor.cursorY == editor.height-1 {
 						editor.offsetX = 0
 						editor.offsetY++
 
@@ -695,9 +713,9 @@ func main() {
 					if len(editor.buffer[editor.cursorY+editor.offsetY]) < editor.cursorX+editor.offsetX {
 						editor.offsetX = 0
 						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY])
-						if editor.cursorX > editor.width {
-							editor.offsetX = editor.cursorX - editor.width
-							editor.cursorX = editor.width
+						if editor.cursorX > editor.width-7 {
+							editor.offsetX = editor.cursorX - editor.width - 7
+							editor.cursorX = editor.width - 7
 						}
 					}
 
