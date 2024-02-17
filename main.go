@@ -92,6 +92,7 @@ func (e *Editor) writeEditor(data string) {
 	//turn data from string into an array and display to screen
 	items := strings.Split(data, "\n")
 	e.buffer = items
+	termbox.Flush()
 }
 
 // reading file from command line arguments
@@ -303,9 +304,9 @@ func (e *Editor) Render() {
 			termbox.SetCell(lineCountWidth+1, i, ' ', termbox.ColorDefault, termbox.ColorDefault)
 			// Change characters based on line length
 			for j, _ := range paddedLine {
-				word, bracket, point := getWord(paddedLine, j)
-				wordColor := SyntaxHighlight(word, j, paddedLine, bracket, point)
 				if j < len(paddedLine)-e.offsetX {
+					word, bracket, point := getWord(paddedLine, j+(e.offsetX))
+					wordColor := SyntaxHighlight(word, j+e.offsetX, paddedLine, bracket, point)
 					termbox.SetCell(j+lineCountWidth+2, i, rune(paddedLine[j+e.offsetX]), wordColor, termbox.ColorDefault)
 				}
 			}
@@ -443,11 +444,41 @@ func main() {
 				text := string(clipboard.Read(clipboard.FmtText))
 				CursorPosX, CursorPosY := editor.cursorX+editor.offsetX, editor.cursorY+editor.offsetY
 				if text != "" {
-					editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX+editor.offsetX] + text + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
-					if editor.cursorX == editor.width {
-						editor.offsetX += len(text)
+					hasNewLine := false
+					count := 0
+					for _, c := range text {
+						if c == '\n' {
+							hasNewLine = true
+							count++
+						}
+					}
+					if !hasNewLine {
+						editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX+editor.offsetX] + text + editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
+						if editor.cursorX == editor.width {
+							editor.offsetX += len(text)
+						} else {
+							editor.cursorX += len(text)
+							if editor.cursorX > editor.width {
+								editor.offsetX = editor.cursorX - editor.width
+								editor.cursorX = editor.width
+							}
+						}
 					} else {
-						editor.cursorX += len(text)
+						NewStr := strings.Split(text, "\n")
+						before := editor.buffer[editor.cursorY+editor.offsetY][:editor.cursorX+editor.offsetX]
+						after := editor.buffer[editor.cursorY+editor.offsetY][editor.cursorX+editor.offsetX:]
+						line := editor.offsetY + editor.cursorY
+						for i := 0; i <= count; i++ {
+							if i != 0 {
+								editor.buffer = append(editor.buffer[:editor.cursorY+editor.offsetY+1], append([]string{NewStr[i]}, editor.buffer[editor.cursorY+1+editor.offsetY:]...)...)
+								editor.cursorY++
+							} else {
+								editor.buffer = append(editor.buffer[:editor.cursorY+editor.offsetY], append([]string{NewStr[i]}, editor.buffer[editor.cursorY+1+editor.offsetY:]...)...)
+							}
+						}
+						editor.buffer[line] = before + editor.buffer[line]
+						editor.buffer[editor.cursorY+editor.offsetY] = editor.buffer[editor.cursorY+editor.offsetY] + after
+						editor.cursorX = len(editor.buffer[editor.cursorY+editor.offsetY]) - len(after)
 						if editor.cursorX > editor.width {
 							editor.offsetX = editor.cursorX - editor.width
 							editor.cursorX = editor.width
@@ -475,26 +506,21 @@ func main() {
 				// Pop the last action from the UndoBuffer
 				action := editor.UndoBuffer[len(editor.UndoBuffer)-1]
 				editor.UndoBuffer = editor.UndoBuffer[:len(editor.UndoBuffer)-1]
-				if action.CursorXEND > editor.width {
-					editor.offsetX = action.CursorXEND - editor.width
-					editor.cursorX = editor.width
-				}
-				if action.CursorYEND > editor.height {
-					editor.offsetY = action.CursorYEND - editor.height
-					editor.cursorY = editor.height
-				} else if action.CursorYEND-editor.offsetY < 0 {
-					editor.offsetY = action.CursorYEND
-					editor.cursorY = 0
-				}
 				// Reverse the action
 				if !action.remove {
 					if action.Text != "\n" {
-						editor.buffer[action.CursorY] = editor.buffer[action.CursorY][:action.CursorX] + editor.buffer[action.CursorY][action.CursorXEND:]
-						if len(action.Text) > editor.width {
-							editor.offsetX = len(action.Text) - editor.width + editor.cursorX
+						if action.CursorY == action.CursorYEND {
+							editor.buffer[action.CursorY] = editor.buffer[action.CursorY][:action.CursorX] + editor.buffer[action.CursorY][action.CursorXEND:]
+							if len(action.Text) > editor.width {
+								editor.offsetX = len(action.Text) - editor.width + editor.cursorX
+							}
+							editor.cursorX = action.CursorX
+							//editor.cursorY = action.CursorY
+						} else {
+							editor.buffer[action.CursorY] = editor.buffer[action.CursorY][:action.CursorX] + editor.buffer[action.CursorYEND][action.CursorXEND:]
+							editor.buffer = append(editor.buffer[:action.CursorY+1], editor.buffer[action.CursorYEND+1:]...)
+							editor.cursorX = action.CursorX
 						}
-						editor.cursorX = action.CursorX
-						//editor.cursorY = action.CursorY
 					} else {
 						nextText := editor.buffer[action.CursorYEND][action.CursorXEND:]
 						copy(editor.buffer[action.CursorYEND:], editor.buffer[action.CursorYEND+1:])
@@ -531,7 +557,7 @@ func main() {
 				}
 				if action.CursorY > editor.height {
 					editor.offsetY = action.CursorYEND - editor.height
-					editor.cursorY = 0
+					editor.cursorY = editor.height
 				}
 
 				// Move the action to the RedoBuffer
