@@ -10,3 +10,5 @@ It runs on almost any terminal application out there*.
 <img src="./README_files/VsCodeTerminal.png" alt="Example of text Editor" style="width: 350px; height: 200px">
 
 It is has general purpose syntax highlighting so there isn't custom syntax highlighting for each language.
+
+Download it [here](https://bobdaprogrammer.github.io/slik/)
