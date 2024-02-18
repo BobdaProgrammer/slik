@@ -49,18 +49,18 @@ body{
 }
 
 .solorized{
-    background-image: url("../README_files/terminalAppSolorizedDarkTheme.png");
+    background-image: url("./README_files/terminalAppSolorizedDarkTheme.png");
     transform: rotate(0deg);
     left: 20%;
     z-index: 20;
     box-shadow: 10px 10px 10px black, -10px -5px 10px black;
 }
 .cmd{
-    background-image: url("../README_files/cmd.png");
+    background-image: url("./README_files/cmd.png");
     background-size: 800px;
 }
 .terminal{
-    background-image: url("../README_files/TerminalAppCustomTheme.png");
+    background-image: url("./README_files/TerminalAppCustomTheme.png");
     left: 70%;
     background-size: 780px;
 }
