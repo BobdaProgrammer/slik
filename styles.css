@@ -2,7 +2,6 @@ body{
     margin: 0px;
     overflow-x: hidden;
 }
-
 ::-webkit-scrollbar {
     display: none;
 }
