@@ -265,35 +265,48 @@ func includes(line string, target string) (bool, int) {
 
 func includesStr(line string, index int) (bool, int, int) {
 	startIndex := 0
-	if line[index] != '"' {
+	if line[index] != '"' && line[index] != '`' && line[index] != '\'' {
 		// Find the start index of the substring starting at the given index
 		substring := line[:index]
 		// Reverse the substring
 		lookBack := reverseString(substring)
-		startIndex = len(lookBack) - strings.Index(lookBack, `"`) - 1
+		startIndex = strings.Index(lookBack, `"`)
 		if startIndex == -1 {
-			// No substring starting at the given index
-			return false, 0, 0
+			startIndex = strings.Index(lookBack, `'`)
+			if startIndex == -1 {
+				startIndex = strings.Index(lookBack, "`")
+				if startIndex == -1 {
+					return false, 0, 0
+				}
+			}
 		}
+		startIndex = (len(lookBack) - startIndex) - 1
 
 		// Find the end index of the substring
 		endIndex := strings.Index(line[index+1:], `"`)
 		if endIndex == -1 {
-			// No end quote found, so the substring is not properly closed
-			return false, 0, 0
+			endIndex = strings.Index(line[index+1:], `'`)
+			if endIndex == -1 {
+				endIndex = strings.Index(line[index+1:], "`")
+				if endIndex == -1 {
+					return false, 0, 0
+				}
+			}
 		}
 		endIndex += index + 1 // Adjust for the slice
 
 		quoteCount := 0
 		for i, char := range line {
-			if char == '"' {
+			if char == '"' || char == '`' || char == '\'' {
 				quoteCount++
 			}
 			if i == endIndex && quoteCount%2 == 0 {
 				return true, startIndex, endIndex
 			}
 		}
-		return false, 0, 0
+		line = line[:startIndex] + line[startIndex+1:]
+		line = line[:endIndex] + line[endIndex+1:]
+		return includesStr(line, index)
 	} else {
 		return true, index, index
 	}
@@ -457,9 +470,8 @@ func (e *Editor) Render() {
 	for j := 0; j < e.width; j++ {
 		termbox.SetCell(j, e.height, rune(e.StatBar(j)), termbox.ColorBlack, termbox.ColorWhite)
 	}
-
-	termbox.SetCursor(e.cursorX+lineCountWidth+2, e.cursorY)
 	termbox.Flush()
+	termbox.SetCursor(e.cursorX+lineCountWidth+2, e.cursorY)
 }
 
 // add character to line
@@ -577,7 +589,6 @@ func main() {
 	defer func() {
 		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 		termbox.Close()
-		fmt.Println(colors)
 	}()
 	for {
 		//go through possible user inputs
