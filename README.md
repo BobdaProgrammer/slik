@@ -21,9 +21,6 @@ A terminal based IDE written in go for simple, quick and easy use
 - line count 
 # Screenshots
  <img src="https://github.com/BobdaProgrammer/slik/blob/main/README_files/terminalAppSolorizedDarkTheme.png?raw=true"> <img src="https://github.com/BobdaProgrammer/slik/blob/main/README_files/TerminalAppCustomTheme.png?raw=true"> <img src="https://github.com/BobdaProgrammer/slik/blob/main/README_files/cmd.png?raw=true">
-# Tech Used
- ![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
-      
 ## Made With:
 ![](https://img.shields.io/badge/termbox-4298B8.svg?style=for-the-badge&logoColor=white)
 ![](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
