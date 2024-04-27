@@ -33,8 +33,10 @@ Winget|yes
 Chocolatey| coming soon
 Scoop|no
 [The website](https://slik.softwarespot.top)| yes
-
-
+---------------------------------
+```
+winget install slik
+```
 
 <!-- </> with 💛 by readMD (https://readmd.itsvg.in) -->
     
