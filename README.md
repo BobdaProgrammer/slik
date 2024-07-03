@@ -49,5 +49,10 @@ Scoop|no
 winget install slik
 ```
 
+## repo activity
+![repo activity](https://repobeats.axiom.co/api/embed/422af0aa7b11b63bae33a76468d8edad377a1fb3.svg "Repobeats analytics image")
+(I know, not much going on here)
+
+
 <!-- </> with 💛 by readMD (https://readmd.itsvg.in) -->
     
