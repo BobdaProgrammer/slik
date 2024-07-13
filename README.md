@@ -54,5 +54,5 @@ winget install slik
 (I know, not much going on here)
 
 
-<!-- </> with 💛 by readMD (https://readmd.itsvg.in) -->
+<!-- </> partially made with 💛 by readMD (https://readmd.itsvg.in) -->
     
